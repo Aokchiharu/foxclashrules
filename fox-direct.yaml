@@ -1,0 +1,6 @@
+payload:
+  # Steam 游戏下载 CDN 关键字拦截（确保下载不走代理）
+  - DOMAIN-KEYWORD,steamcontent.com
+  
+  # JetBrains 软件更新与 CDN
+  - DOMAIN,download-cdn.jetbrains.com

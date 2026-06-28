@@ -1,0 +1,3 @@
+payload:
+  # Adobe 遥测与后台验证拦截
+  - GEOSITE,adobe
