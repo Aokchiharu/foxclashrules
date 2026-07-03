@@ -4,3 +4,5 @@ payload:
   
   # JetBrains 软件更新与 CDN
   - DOMAIN,download-cdn.jetbrains.com
+  # 中国大陆服务器
+  - IP-CIDR,8.159.137.46/32,no-resolve
