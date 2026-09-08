@@ -17,5 +17,7 @@ payload:
   - DOMAIN-SUFFIX,jitpack.io
   - DOMAIN-SUFFIX,docker.com
   - DOMAIN-SUFFIX,docker.io
+  - DOMAIN-SUFFIX,ppa.launchpadcontent.net
+  - DOMAIN-SUFFIX,download.docker.com
   - DOMAIN-KEYWORD,maven
   - DOMAIN-KEYWORD,gradle
