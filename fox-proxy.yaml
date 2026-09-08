@@ -2,7 +2,7 @@ payload:
   # Maven 中央仓库与镜像
   - DOMAIN-SUFFIX,repo1.maven.org
   - DOMAIN-SUFFIX,github.com
-  - DOMAIN-SUFFIX,download.openwrt.org
+  - DOMAIN-SUFFIX,downloads.openwrt.org
   - DOMAIN-SUFFIX,raw.githubusercontent.com
   - DOMAIN-SUFFIX,cdn.jsdelivr.net
   - DOMAIN-SUFFIX,fastly.jsdelivr.net
