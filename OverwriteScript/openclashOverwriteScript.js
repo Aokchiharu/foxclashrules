@@ -29,47 +29,35 @@ SETTINGS = YAML.safe_load(<<'FOX_SETTINGS', aliases: true)
     "tolerance": 25,
     "includeOtherRegion": true
   },
-  "infoPattern": "剩余流量|套餐到期|到期时间|官网|官方网站|订阅更新|流量重置|traffic remaining|expire date",
+  "infoPattern": "剩余流量|距离下次重置|距離下次重置|套餐到期|到期时间|官网|官方网站|订阅更新|流量重置|traffic remaining|expire date",
   "regions": [
-    [
-      "HK",
-      "🇭🇰|香港|Hong\\s*Kong|\\bHK(?=\\d|\\b)"
-    ],
     [
       "JP",
       "🇯🇵|日本|Japan|\\bJP(?=\\d|\\b)"
-    ],
-    [
-      "KR",
-      "🇰🇷|韩国|韓國|Korea|\\bKR(?=\\d|\\b)"
-    ],
-    [
-      "SG",
-      "🇸🇬|新加坡|狮城|獅城|Singapore|\\bSG(?=\\d|\\b)"
     ],
     [
       "TW",
       "🇹🇼|台湾|台灣|Taiwan|\\bTW(?=\\d|\\b)"
     ],
     [
+      "SG",
+      "🇸🇬|新加坡|狮城|獅城|Singapore|\\bSG(?=\\d|\\b)"
+    ],
+    [
+      "HK",
+      "🇭🇰|香港|Hong\\s*Kong|\\bHK(?=\\d|\\b)"
+    ],
+    [
       "US",
       "🇺🇸|美国|美國|United\\s*States|\\bUSA?\\b|\\bUS(?=\\d)"
     ],
     [
-      "MY",
-      "🇲🇾|马来西亚|馬來西亞|Malaysia|\\bMY(?=\\d|\\b)"
+      "EU",
+      "🇳🇱|🇬🇧|🇩🇪|🇫🇷|🇨🇭|🇸🇪|🇫🇮|🇳🇴|🇩🇰|🇮🇹|🇪🇸|🇵🇱|🇦🇹|🇮🇪|🇵🇹|荷兰|荷蘭|英国|英國|德国|德國|法国|法國|瑞士|瑞典|芬兰|挪威|丹麦|意大利|西班牙|波兰|奥地利|爱尔兰|葡萄牙|Netherlands|United\\s*Kingdom|Britain|Germany|France|Switzerland|Sweden|Finland|Norway|Denmark|Italy|Spain|Poland|Austria|Ireland|Portugal|\\b(?:NL|UK|GB|DE|FR|CH|SE|FI|NO|DK|IT|ES|PL|AT|IE|PT)(?=\\d|\\b)"
     ],
     [
-      "NL",
-      "🇳🇱|荷兰|荷蘭|Netherlands|\\bNL(?=\\d|\\b)"
-    ],
-    [
-      "UK",
-      "🇬🇧|英国|英國|United\\s*Kingdom|Britain|\\b(?:UK|GB)(?=\\d|\\b)"
-    ],
-    [
-      "DE",
-      "🇩🇪|德国|德國|Germany|\\bDE(?=\\d|\\b)"
+      "AS",
+      "🇰🇷|🇲🇾|🇮🇳|🇹🇭|🇻🇳|🇮🇩|🇵🇭|🇲🇴|🇨🇳|韩国|韓國|马来西亚|馬來西亞|印度|泰国|泰國|越南|印尼|菲律宾|菲律賓|澳门|澳門|中国|中國|Korea|Malaysia|India|Thailand|Vietnam|Indonesia|Philippines|Macau|Macao|China|\\b(?:KR|MY|IN|TH|VN|ID|PH|MO|CN)(?=\\d|\\b)"
     ]
   ],
   "services": [
@@ -511,13 +499,12 @@ def fox_transform(config)
     {'name'=>name, 'type'=>'load-balance', 'proxies'=>proxies.dup,
      'url'=>options['testURL'], 'interval'=>300, 'strategy'=>'consistent-hashing', 'lazy'=>true}
   end
-  choices = ['自动选择', '负载均衡'] + available.map { |b| b[0] + '自动选择' } + available.map { |b| b[0] + '负载均衡' }
+  choices = ['自动选择', '负载均衡'] + available.flat_map { |b| [b[0] + '自动选择', b[0] + '负载均衡'] }
   groups = [
     {'name'=>'主代理', 'type'=>'select', 'proxies'=>choices + ['DIRECT'] + names},
     auto.call('自动选择', names), balance.call('负载均衡', names)
   ]
-  available.each { |b| groups.push(auto.call(b[0] + '自动选择', b[2])) }
-  available.each { |b| groups.push(balance.call(b[0] + '负载均衡', b[2])) }
+  available.each { |b| groups.push(auto.call(b[0] + '自动选择', b[2]), balance.call(b[0] + '负载均衡', b[2])) }
   SETTINGS['services'].each do |name|
     defaults = SETTINGS['directDefault'].include?(name) ? ['DIRECT', '主代理'] : ['主代理']
     groups.push({'name'=>name, 'type'=>'select', 'proxies'=>defaults + choices + names})
@@ -552,6 +539,7 @@ def fox_transform(config)
   # Router IPv6, TUN, controller, redir-port, tproxy-port, LAN access remain OpenClash-owned.
   config['mixed-port'] = 10808
   config['mode'] = 'rule'
+  config.delete('global-client-fingerprint') # Keep per-node fingerprints.
   config['profile'] = {} unless config['profile'].is_a?(Hash)
   config['profile'].merge!('store-selected'=>true, 'store-fake-ip'=>true)
   config['unified-delay'] = true

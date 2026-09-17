@@ -1,7 +1,7 @@
 // Clash Mi 自定义覆写，类型选择 JS。iOS / Android 共用。
-// 目标：1.0.29.1053 / Mihomo 1.19.30；绑定原始节点订阅。
+// 目标：Clash Mi 1.0.29 系列 / Mihomo 1.19.30；绑定原始节点订阅。
 // 在应用中启用 TUN 覆写；追加覆写选择「内置-覆写」。
-// main 返回 JSON 文本（合法 YAML），避免平台 JS 对象桥接差异。
+// 修正版：main 直接返回配置对象，适配 iOS 的 Map 返回值要求。
 const OPTIONS = {
   blockQUIC: true, // 与目标模板一致：阻止公网 UDP/443。需要 HTTP/3 时改为 false。
   testURL: 'https://www.google.com/',
@@ -15,25 +15,14 @@ function applyPurposeConfig(config) {
   if (!config || !Array.isArray(config.proxies)) {
     throw new Error('此脚本适用于包含 proxies 节点列表的订阅；不适用于仅含 proxy-providers 的订阅。');
   }
-  const infoNode = /剩余流量|套餐到期|到期时间|官网|官方网站|订阅更新|流量重置|traffic remaining|expire date/i;
+  const infoNode = /剩余流量|距离下次重置|距離下次重置|套餐到期|到期时间|官网|官方网站|订阅更新|流量重置|traffic remaining|expire date/i;
   const nodes = config.proxies.filter(p => p && typeof p.name === 'string' && p.name.trim() && p.server && !infoNode.test(p.name));
   if (!nodes.length) throw new Error('没有可用节点，请检查订阅内容。');
   const names = nodes.map(p => p.name);
   if (new Set(names).size !== names.length) throw new Error('节点名称重复，请先修正订阅中的重复名称。');
 
   // 支持当前订阅的英文全称/旗帜，也支持常见中文和 HK-1、JP1-HY2 等命名。
-  const regions = [
-    ['HK', /🇭🇰|香港|Hong\s*Kong|\bHK(?=\d|\b)/i],
-    ['JP', /🇯🇵|日本|Japan|\bJP(?=\d|\b)/i],
-    ['KR', /🇰🇷|韩国|韓國|Korea|\bKR(?=\d|\b)/i],
-    ['SG', /🇸🇬|新加坡|狮城|獅城|Singapore|\bSG(?=\d|\b)/i],
-    ['TW', /🇹🇼|台湾|台灣|Taiwan|\bTW(?=\d|\b)/i],
-    ['US', /🇺🇸|美国|美國|United\s*States|\bUSA?\b|\bUS(?=\d)/i],
-    ['MY', /🇲🇾|马来西亚|馬來西亞|Malaysia|\bMY(?=\d|\b)/i],
-    ['NL', /🇳🇱|荷兰|荷蘭|Netherlands|\bNL(?=\d|\b)/i],
-    ['UK', /🇬🇧|英国|英國|United\s*Kingdom|Britain|\b(?:UK|GB)(?=\d|\b)/i],
-    ['DE', /🇩🇪|德国|德國|Germany|\bDE(?=\d|\b)/i],
-  ];
+  const regions = [["JP","🇯🇵|日本|Japan|\\bJP(?=\\d|\\b)"],["TW","🇹🇼|台湾|台灣|Taiwan|\\bTW(?=\\d|\\b)"],["SG","🇸🇬|新加坡|狮城|獅城|Singapore|\\bSG(?=\\d|\\b)"],["HK","🇭🇰|香港|Hong\\s*Kong|\\bHK(?=\\d|\\b)"],["US","🇺🇸|美国|美國|United\\s*States|\\bUSA?\\b|\\bUS(?=\\d)"],["EU","🇳🇱|🇬🇧|🇩🇪|🇫🇷|🇨🇭|🇸🇪|🇫🇮|🇳🇴|🇩🇰|🇮🇹|🇪🇸|🇵🇱|🇦🇹|🇮🇪|🇵🇹|荷兰|荷蘭|英国|英國|德国|德國|法国|法國|瑞士|瑞典|芬兰|挪威|丹麦|意大利|西班牙|波兰|奥地利|爱尔兰|葡萄牙|Netherlands|United\\s*Kingdom|Britain|Germany|France|Switzerland|Sweden|Finland|Norway|Denmark|Italy|Spain|Poland|Austria|Ireland|Portugal|\\b(?:NL|UK|GB|DE|FR|CH|SE|FI|NO|DK|IT|ES|PL|AT|IE|PT)(?=\\d|\\b)"],["AS","🇰🇷|🇲🇾|🇮🇳|🇹🇭|🇻🇳|🇮🇩|🇵🇭|🇲🇴|🇨🇳|韩国|韓國|马来西亚|馬來西亞|印度|泰国|泰國|越南|印尼|菲律宾|菲律賓|澳门|澳門|中国|中國|Korea|Malaysia|India|Thailand|Vietnam|Indonesia|Philippines|Macau|Macao|China|\\b(?:KR|MY|IN|TH|VN|ID|PH|MO|CN)(?=\\d|\\b)"]].map(function(item) { return [item[0], new RegExp(item[1], "i")]; });
   const buckets = regions.map(([code]) => ({code, names: []}));
   const other = [];
   names.forEach(name => {
@@ -43,21 +32,18 @@ function applyPurposeConfig(config) {
   });
   if (OPTIONS.includeOtherRegion && other.length) buckets.push({code: '其他', names: other});
   const available = buckets.filter(b => b.names.length);
-  const autoNames = available.map(b => b.code + '自动选择');
-  const balanceNames = available.map(b => b.code + '负载均衡');
   function auto(name, proxies) {
     return {name, type: 'url-test', proxies, url: OPTIONS.testURL, interval: OPTIONS.testInterval, tolerance: OPTIONS.tolerance, lazy: true};
   }
   function balance(name, proxies) {
     return {name, type: 'load-balance', proxies, url: OPTIONS.testURL, interval: 300, strategy: 'consistent-hashing', lazy: true};
   }
-  const choices = ['自动选择', '负载均衡'].concat(autoNames, balanceNames);
+  const choices = ['自动选择', '负载均衡'].concat(...available.map(b => [b.code + '自动选择', b.code + '负载均衡']));
   const groups = [
     {name: '主代理', type: 'select', proxies: choices.concat('DIRECT', names)},
     auto('自动选择', names), balance('负载均衡', names),
   ];
-  available.forEach(b => groups.push(auto(b.code + '自动选择', b.names)));
-  available.forEach(b => groups.push(balance(b.code + '负载均衡', b.names)));
+  available.forEach(b => groups.push(auto(b.code + '自动选择', b.names), balance(b.code + '负载均衡', b.names)));
   const directDefault = ['Bilibili', 'Steam', 'Apple', 'Microsoft', '中国大陆网站'];
   const services = ['Bahamut', 'Bilibili', 'Discord', 'GoogleFCM', 'Netflix', 'OpenAI', 'Speedtest', 'Spotify', 'Steam', 'Telegram', 'TikTok', 'Apple', 'Google', 'Microsoft', '黑名单网站', '中国大陆网站'];
   services.forEach(name => {
@@ -440,6 +426,8 @@ function main(config) {
   });
   config['rule-providers'] = providers;
   config = applyPurposeConfig(config);
+  // Mihomo 已移除全局指纹；保留订阅节点自身的 client-fingerprint。
+  delete config['global-client-fingerprint'];
 
   // VPN/TUN 和控制接口由 Clash Mi 的平台适配层及内置覆写生成。
   // 清除订阅可能附带的桌面/路由器设备名、控制端口和路由配置。
@@ -485,5 +473,6 @@ function main(config) {
     if (!known.has(target)) throw new Error('规则目标不存在：' + target);
     if (parts[0] === 'RULE-SET' && !config['rule-providers'][parts[1]]) throw new Error('规则集不存在：' + parts[1]);
   });
+  // iOS 的 JS 桥接将返回值转换为 Map，因此必须直接返回对象。
   return config;
 }
