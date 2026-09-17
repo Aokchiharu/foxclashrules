@@ -1,5 +1,7 @@
-// Clash Verge Rev：放入当前订阅的「扩展脚本」。每次更新订阅后自动重新生成分组。
-// 不含订阅地址、节点服务器、UUID；真实节点由 config.proxies 动态读取。
+// Clash Mi 自定义覆写，类型选择 JS。iOS / Android 共用。
+// 目标：1.0.29.1053 / Mihomo 1.19.30；绑定原始节点订阅。
+// 在应用中启用 TUN 覆写；追加覆写选择「内置-覆写」。
+// main 返回 JSON 文本（合法 YAML），避免平台 JS 对象桥接差异。
 const OPTIONS = {
   blockQUIC: true, // 与目标模板一致：阻止公网 UDP/443。需要 HTTP/3 时改为 false。
   testURL: 'https://www.google.com/',
@@ -9,7 +11,7 @@ const OPTIONS = {
   includeOtherRegion: true,
 };
 
-function main(config) {
+function applyPurposeConfig(config) {
   if (!config || !Array.isArray(config.proxies)) {
     throw new Error('此脚本适用于包含 proxies 节点列表的订阅；不适用于仅含 proxy-providers 的订阅。');
   }
@@ -421,4 +423,67 @@ function main(config) {
 ];
   config.rules = foxRules.concat(localRules, OPTIONS.blockQUIC ? ['AND,((DST-PORT,443),(NETWORK,UDP)),REJECT'] : [], purposeRules);
   return config;
+}
+
+// Clash Mi 入口：自包含，不需要 Verge 全局脚本或 OpenClash 组件。
+function main(config) {
+  if (!config || typeof config !== 'object' || Array.isArray(config)) {
+    throw new Error('订阅配置必须是对象');
+  }
+  var providers = Object.assign({}, config['rule-providers'] || {});
+  ['fox-proxy', 'fox-direct', 'fox-reject'].forEach(function(name) {
+    providers[name] = {
+      type: 'http', behavior: 'classical', format: 'yaml',
+      url: 'https://clash.huguaxi.com/Aokchiharu/foxclashrules/main/' + name + '.yaml',
+      path: './ruleset/' + name + '.yaml', interval: 43200
+    };
+  });
+  config['rule-providers'] = providers;
+  config = applyPurposeConfig(config);
+
+  // VPN/TUN 和控制接口由 Clash Mi 的平台适配层及内置覆写生成。
+  // 清除订阅可能附带的桌面/路由器设备名、控制端口和路由配置。
+  ['tun', 'redir-port', 'tproxy-port', 'port', 'socks-port',
+   'external-controller', 'external-controller-tls', 'external-controller-unix',
+   'external-controller-pipe', 'external-ui', 'external-ui-url', 'external-ui-name',
+   'external-controller-cors', 'secret', 'authentication', 'listeners',
+   'interface-name', 'routing-mark', 'ntp', 'geox-url', 'sub-rules', 'sniffer'].forEach(function(key) {
+    delete config[key];
+  });
+  config['mixed-port'] = 10808;
+  config['allow-lan'] = false;
+  config['bind-address'] = '127.0.0.1';
+  config['find-process-mode'] = 'off';
+  config['geo-auto-update'] = false;
+  // 以 MRS 规则集分流；取消 DNS fallback 对 GeoIP 数据库的依赖。
+  config.dns['fallback-filter'].geoip = false;
+  delete config.dns['fallback-filter']['geoip-code'];
+  delete config.dns.listen;
+
+  // 检查最终分组、链式节点和规则集引用，避免输出缺失引用的配置。
+  var groups = config['proxy-groups'];
+  var known = new Set(['DIRECT', 'REJECT']);
+  var groupMap = Object.create(null);
+  config.proxies.forEach(function(p) { known.add(p.name); });
+  groups.forEach(function(g) { known.add(g.name); groupMap[g.name] = g; });
+  function visit(name, parents) {
+    if (!known.has(name)) throw new Error('不存在的代理引用：' + name);
+    if (!groupMap[name]) return;
+    if (parents.indexOf(name) >= 0) throw new Error('策略组循环：' + name);
+    groupMap[name].proxies.forEach(function(child) { visit(child, parents.concat(name)); });
+  }
+  groups.forEach(function(g) {
+    if (!g.proxies.length) throw new Error('空策略组：' + g.name);
+    visit(g.name, []);
+  });
+  config.proxies.forEach(function(p) {
+    if (p['dialer-proxy'] && !known.has(p['dialer-proxy'])) throw new Error('链式代理引用不存在：' + p['dialer-proxy']);
+  });
+  config.rules.forEach(function(rule) {
+    var parts = rule.split(',');
+    var target = parts[parts.length - 1] === 'no-resolve' ? parts[parts.length - 2] : parts[parts.length - 1];
+    if (!known.has(target)) throw new Error('规则目标不存在：' + target);
+    if (parts[0] === 'RULE-SET' && !config['rule-providers'][parts[1]]) throw new Error('规则集不存在：' + parts[1]);
+  });
+  return JSON.stringify(config);
 }
