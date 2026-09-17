@@ -485,5 +485,5 @@ function main(config) {
     if (!known.has(target)) throw new Error('规则目标不存在：' + target);
     if (parts[0] === 'RULE-SET' && !config['rule-providers'][parts[1]]) throw new Error('规则集不存在：' + parts[1]);
   });
-  return JSON.stringify(config);
+  return config;
 }
