@@ -2,11 +2,12 @@ payload:
   # Steam 游戏下载 CDN 关键字拦截（确保下载不走代理）
   - DOMAIN-KEYWORD,steamcontent.com
   
+  # CS国内
+  - DOMAIN,wmpvp.com
+  - DOMAIN,wanmei.com
+  - DOMAIN-KEYWORD,tgprocs
   # JetBrains 软件更新与 CDN
   - DOMAIN,download-cdn.jetbrains.com
-  - DOMAIN,tgprocs.net
-  - DOMAIN,tgprocs.top
-  - DOMAIN,wmpvp.com
-  - DOMAIN,
+  
   # 中国大陆服务器
   - IP-CIDR,8.159.137.46/32,no-resolve
