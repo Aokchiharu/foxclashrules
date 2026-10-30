@@ -3,6 +3,7 @@ payload:
   - DOMAIN-KEYWORD,steamcontent.com
   
   # CS国内
+  - DOMAIN-SUFFIX,tgprocs.net
   - DOMAIN,wmpvp.com
   - DOMAIN,wanmei.com
   - DOMAIN-KEYWORD,tgprocs
@@ -11,3 +12,4 @@ payload:
   
   # 中国大陆服务器
   - IP-CIDR,8.159.137.46/32,no-resolve
+  
